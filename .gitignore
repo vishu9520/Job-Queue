@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+
+# Environment variables (keep .env.example if needed)
+.env
+backend/.env
+frontend/.env
+
+# Database files
+*.db
+*.db-journal
+*.sqlite
+
+# Prisma generated client (regenerated via prisma generate)
+backend/node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS generated files
+.DS_Store
+Thumbs.db
+__MACOSX/
+
+# Editor directories
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# TypeScript cache
+*.tsbuildinfo
