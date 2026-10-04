@@ -8,7 +8,7 @@ import {
   deleteJob,
   triggerProcessNext,
   simulateRaceCondition,
-  socket,
+  connectSSE,
 } from './services/api';
 import { Navbar } from './components/Navbar';
 import { StatsOverview } from './components/StatsOverview';
@@ -28,7 +28,7 @@ export function App() {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isConnected, setIsConnected] = useState<boolean>(socket.connected);
+  const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [isProcessingWorker, setIsProcessingWorker] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -65,51 +65,35 @@ export function App() {
     fetchJobsAndStats();
   }, [fetchJobsAndStats]);
 
-  // Socket.io Real-time setup
+  // SSE Real-time setup (replaces Socket.io — works on Vercel)
   useEffect(() => {
-    const onConnect = () => setIsConnected(true);
-    const onDisconnect = () => setIsConnected(false);
+    const disconnect = connectSSE({
+      onConnect: () => setIsConnected(true),
+      onDisconnect: () => setIsConnected(false),
 
-    if (socket.connected) {
-      setIsConnected(true);
-    }
+      onJobCreated: (newJob: Job) => {
+        setJobs((prev) => [newJob, ...prev]);
+        getStats().then(setStats);
+        addToast('info', 'New Job Added', `Job "${newJob.title}" created.`);
+      },
 
-    const onJobCreated = (newJob: Job) => {
-      setJobs((prev) => [newJob, ...prev]);
-      getStats().then(setStats);
-      addToast('info', 'New Job Added', `Job "${newJob.title}" created via WebSocket.`);
-    };
+      onJobUpdated: (updatedJob: Job) => {
+        setJobs((prev) => prev.map((j) => (j.id === updatedJob.id ? updatedJob : j)));
+        getStats().then(setStats);
+      },
 
-    const onJobUpdated = (updatedJob: Job) => {
-      setJobs((prev) => prev.map((j) => (j.id === updatedJob.id ? updatedJob : j)));
-      getStats().then(setStats);
-    };
+      onJobDeleted: ({ id }: { id: string }) => {
+        setJobs((prev) => prev.filter((j) => j.id !== id));
+        getStats().then(setStats);
+        addToast('info', 'Job Deleted', `Job record deleted.`);
+      },
 
-    const onJobDeleted = ({ id }: { id: string }) => {
-      setJobs((prev) => prev.filter((j) => j.id !== id));
-      getStats().then(setStats);
-      addToast('info', 'Job Deleted', `Job record deleted.`);
-    };
+      onStatsUpdated: (newStats: JobStats) => {
+        setStats(newStats);
+      },
+    });
 
-    const onStatsUpdated = (newStats: JobStats) => {
-      setStats(newStats);
-    };
-
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    socket.on('jobCreated', onJobCreated);
-    socket.on('jobUpdated', onJobUpdated);
-    socket.on('jobDeleted', onJobDeleted);
-    socket.on('statsUpdated', onStatsUpdated);
-
-    return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
-      socket.off('jobCreated', onJobCreated);
-      socket.off('jobUpdated', onJobUpdated);
-      socket.off('jobDeleted', onJobDeleted);
-      socket.off('statsUpdated', onStatsUpdated);
-    };
+    return disconnect;
   }, []);
 
   const handleCreateJob = async (title: string, type: string) => {

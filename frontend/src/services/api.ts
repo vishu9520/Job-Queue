@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { io, Socket } from 'socket.io-client';
 import type { Job, JobStats, JobStatus } from '../types/job';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
@@ -11,12 +10,53 @@ export const api = axios.create({
   },
 });
 
-// Socket.io initialization
-export const socket: Socket = io(API_BASE_URL, {
-  autoConnect: true,
-  reconnectionAttempts: 5,
-  reconnectionDelay: 1000,
-});
+/**
+ * Connects to the backend SSE stream at GET /jobs/events.
+ * Returns a cleanup function — call it on component unmount.
+ *
+ * Replaces socket.io-client. Works on Vercel (no persistent WebSocket needed).
+ */
+export function connectSSE(handlers: {
+  onJobCreated?: (job: Job) => void;
+  onJobUpdated?: (job: Job) => void;
+  onJobDeleted?: (payload: { id: string }) => void;
+  onStatsUpdated?: (stats: JobStats) => void;
+  onConnect?: () => void;
+  onDisconnect?: () => void;
+}): () => void {
+  const url = `${API_BASE_URL}/jobs/events`;
+  const es = new EventSource(url);
+
+  es.onopen = () => handlers.onConnect?.();
+  es.onerror = () => handlers.onDisconnect?.();
+
+  if (handlers.onJobCreated) {
+    es.addEventListener('jobCreated', (e) => {
+      handlers.onJobCreated!(JSON.parse(e.data));
+    });
+  }
+
+  if (handlers.onJobUpdated) {
+    es.addEventListener('jobUpdated', (e) => {
+      handlers.onJobUpdated!(JSON.parse(e.data));
+    });
+  }
+
+  if (handlers.onJobDeleted) {
+    es.addEventListener('jobDeleted', (e) => {
+      handlers.onJobDeleted!(JSON.parse(e.data));
+    });
+  }
+
+  if (handlers.onStatsUpdated) {
+    es.addEventListener('statsUpdated', (e) => {
+      handlers.onStatsUpdated!(JSON.parse(e.data));
+    });
+  }
+
+  // Return cleanup function
+  return () => es.close();
+}
 
 export const getJobs = async (status?: string, search?: string): Promise<Job[]> => {
   const params: Record<string, string> = {};

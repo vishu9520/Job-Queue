@@ -9,14 +9,44 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  Sse,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
+import { Observable, map } from 'rxjs';
 import { JobsService } from './jobs.service';
+import { SseService } from './sse.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobStatusDto } from './dto/update-job-status.dto';
 
 @Controller('jobs')
 export class JobsController {
-  constructor(private readonly jobsService: JobsService) {}
+  constructor(
+    private readonly jobsService: JobsService,
+    private readonly sseService: SseService,
+  ) {}
+
+  /**
+   * SSE endpoint — frontend connects here to receive real-time job events.
+   * GET /jobs/events
+   * Replaces Socket.io — works on Vercel serverless.
+   */
+  @Sse('events')
+  sse(@Res() res: Response): Observable<MessageEvent> {
+    // Keep connection alive with periodic heartbeat
+    const heartbeat = setInterval(() => {
+      res.write(': heartbeat\n\n');
+    }, 25000);
+
+    res.on('close', () => clearInterval(heartbeat));
+
+    return this.sseService.stream$.pipe(
+      map(({ type, data }) => ({
+        type,
+        data: JSON.stringify(data),
+      } as MessageEvent)),
+    );
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)

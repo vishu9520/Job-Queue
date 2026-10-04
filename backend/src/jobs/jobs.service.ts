@@ -8,7 +8,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { JobStatus, ALLOWED_TRANSITIONS } from './job-status.enum';
-import { JobsGateway } from './jobs.gateway';
+import { SseService } from './sse.service';
 
 @Injectable()
 export class JobsService {
@@ -16,7 +16,7 @@ export class JobsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly jobsGateway: JobsGateway,
+    private readonly sseService: SseService,
   ) {}
 
   async create(createJobDto: CreateJobDto) {
@@ -28,7 +28,7 @@ export class JobsService {
       },
     });
 
-    this.jobsGateway.notifyJobCreated(job);
+    this.sseService.emit('jobCreated', job);
     await this.broadcastStats();
     return job;
   }
@@ -90,7 +90,7 @@ export class JobsService {
 
   private async broadcastStats() {
     const stats = await this.getStats();
-    this.jobsGateway.notifyStatsUpdated(stats);
+    this.sseService.emit('statsUpdated', stats);
   }
 
   /**
@@ -155,7 +155,7 @@ export class JobsService {
       throw new NotFoundException(`Job with ID '${id}' not found after update`);
     }
 
-    this.jobsGateway.notifyJobUpdated(updatedJob);
+    this.sseService.emit('jobUpdated', updatedJob);
     await this.broadcastStats();
 
     return updatedJob;
@@ -165,7 +165,7 @@ export class JobsService {
     await this.findOne(id);
     await this.prisma.job.delete({ where: { id } });
 
-    this.jobsGateway.notifyJobDeleted(id);
+    this.sseService.emit('jobDeleted', { id });
     await this.broadcastStats();
 
     return { message: `Job '${id}' successfully deleted`, id };
