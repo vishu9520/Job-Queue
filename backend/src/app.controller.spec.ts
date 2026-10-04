@@ -15,8 +15,11 @@ describe('AppController', () => {
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+    it('should return a healthy API response', () => {
+      expect(appController.getHello()).toEqual({
+        status: 'ok',
+        message: expect.any(String),
+      });
     });
   });
 });

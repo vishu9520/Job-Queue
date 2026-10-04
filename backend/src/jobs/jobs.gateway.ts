@@ -9,7 +9,11 @@ import { Logger } from '@nestjs/common';
 
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: (process.env.FRONTEND_URL || 'http://localhost:5173')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+    credentials: true,
   },
 })
 export class JobsGateway implements OnGatewayConnection, OnGatewayDisconnect {
