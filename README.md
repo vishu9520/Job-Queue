@@ -265,6 +265,62 @@ npm test
 - ✅ Rejection: Mutating `completed` or `failed` (Terminal State checks)
 - ✅ Concurrency: Race condition collision (Throws `409 Conflict`)
 
+## 🚢 Production Deployment
+
+Deploy the frontend to Vercel and the backend as a separate long-running Node service. Vercel serves the Vite frontend well, but its serverless functions do not support this application's persistent Socket.io connection. This deployment intentionally uses a local SQLite file on Render; jobs may be lost when Render restarts or redeploys the service.
+
+### Backend service
+
+Set these environment variables on the backend host:
+
+```bash
+DATABASE_URL="file:./dev.db"
+PORT=3001
+FRONTEND_URL="https://your-frontend-domain.example"
+```
+
+Build and start commands:
+
+```bash
+cd backend
+npm ci
+npm run db:push
+npm run build
+npm run start:prod
+```
+
+The host must route its public HTTP and WebSocket traffic to the same backend process. Use the public backend URL for the frontend's `VITE_API_BASE_URL` value. No persistent disk is required for this temporary-data deployment.
+
+### Frontend service on Vercel
+
+Set the build-time environment variable:
+
+```bash
+VITE_API_BASE_URL="https://your-backend-domain.example"
+```
+
+Import this repository into Vercel. The included `vercel.json` automatically runs the frontend build and publishes `frontend/dist`.
+
+Alternatively, configure the Vercel project manually:
+
+- Framework preset: `Vite`
+- Root directory: repository root
+- Build command: `npm --prefix frontend run build`
+- Output directory: `frontend/dist`
+- Environment variable: `VITE_API_BASE_URL`
+
+```bash
+cd frontend
+npm ci
+npm run build
+```
+
+After Vercel gives you a domain, set the backend's `FRONTEND_URL` to that exact origin, including `https://` and without a trailing slash. Multiple origins can be separated by commas.
+
+### Render data warning
+
+Because `DATABASE_URL` uses `file:./dev.db`, the database is stored on Render's temporary filesystem. This is acceptable for demos and testing, but jobs can disappear after a restart or redeploy. Use a Render persistent disk or PostgreSQL later if the data must be retained.
+
 ---
 
 ## ⚡ Testing Concurrency in the UI
